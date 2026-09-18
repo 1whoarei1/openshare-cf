@@ -35,6 +35,13 @@
         <span>此站点独立运行于 Cloudflare。主服务器离线时，仍可按文件夹逐层浏览、搜索和下载最近一次同步到 R2 的资料。</span>
       </section>
 
+      <section class="quota-reminder" aria-label="R2 免费额度提醒">
+        <strong>R2 免费额度</strong>
+        <span class="quota-pill"><b>Class A</b> 100 万/月 · 剩余 <strong id="classARemainingTop">--</strong></span>
+        <span class="quota-pill"><b>Class B</b> 1000 万/月 · 剩余 <strong id="classBRemainingTop">--</strong></span>
+        <small id="quotaTopState">按账号每月重置</small>
+      </section>
+
       <section class="stats" aria-label="镜像统计">
         <article class="stat-card blue">
           <span>资料文件</span>
@@ -51,59 +58,6 @@
           <strong id="backupState">检查中</strong>
           <small id="catalogSource">等待索引</small>
         </article>
-      </section>
-
-      <section class="panel quota-panel" aria-label="R2 免费额度">
-        <div class="quota-header">
-          <div>
-            <h2>R2 本月操作额度</h2>
-            <p>Standard 免费额度按 Cloudflare 账号每月计算；实时使用量来自 Cloudflare Analytics。</p>
-          </div>
-          <div class="quota-status">
-            <span id="usageStatus">正在读取…</span>
-            <small id="usagePeriod">本月</small>
-          </div>
-        </div>
-
-        <div class="quota-grid">
-          <article class="quota-card">
-            <div class="quota-title">
-              <div>
-                <span class="quota-label">Class A</span>
-                <small>写入 / 列表等操作</small>
-              </div>
-              <strong><span id="classAUsed">--</span> / <span id="classALimit">1,000,000</span></strong>
-            </div>
-            <div class="progress-track" aria-hidden="true">
-              <div class="progress-fill class-a" id="classAProgress"></div>
-            </div>
-            <div class="quota-footer">
-              <span>剩余免费 <strong id="classARemaining">--</strong></span>
-              <span>本桶 <strong id="bucketClassA">--</strong></span>
-            </div>
-          </article>
-
-          <article class="quota-card">
-            <div class="quota-title">
-              <div>
-                <span class="quota-label">Class B</span>
-                <small>读取 / 下载等操作</small>
-              </div>
-              <strong><span id="classBUsed">--</span> / <span id="classBLimit">10,000,000</span></strong>
-            </div>
-            <div class="progress-track" aria-hidden="true">
-              <div class="progress-fill class-b" id="classBProgress"></div>
-            </div>
-            <div class="quota-footer">
-              <span>剩余免费 <strong id="classBRemaining">--</strong></span>
-              <span>本桶 <strong id="bucketClassB">--</strong></span>
-            </div>
-          </article>
-        </div>
-
-        <div class="quota-note" id="usageNote">
-          免费额度：Class A 100 万次/月，Class B 1000 万次/月。这里显示的是监控统计，不替代 Cloudflare Billing 最终账单。
-        </div>
       </section>
 
       <section class="panel search-panel">
@@ -144,6 +98,61 @@
           </div>
         </div>
       </section>
+
+      <details class="panel quota-panel quota-details">
+        <summary class="quota-summary">
+          <span>
+            <strong>R2 用量详情</strong>
+            <small>展开查看本月 Class A / Class B 操作统计</small>
+          </span>
+          <span class="quota-summary-status">
+            <strong id="usageStatus">正在读取…</strong>
+            <small id="usagePeriod">本月</small>
+          </span>
+        </summary>
+
+        <div class="quota-details-body">
+          <div class="quota-grid">
+            <article class="quota-card">
+              <div class="quota-title">
+                <div>
+                  <span class="quota-label">Class A</span>
+                  <small>写入 / 列表等操作</small>
+                </div>
+                <strong><span id="classAUsed">--</span> / <span id="classALimit">1,000,000</span></strong>
+              </div>
+              <div class="progress-track" aria-hidden="true">
+                <div class="progress-fill class-a" id="classAProgress"></div>
+              </div>
+              <div class="quota-footer">
+                <span>剩余免费 <strong id="classARemaining">--</strong></span>
+                <span>本桶 <strong id="bucketClassA">--</strong></span>
+              </div>
+            </article>
+
+            <article class="quota-card">
+              <div class="quota-title">
+                <div>
+                  <span class="quota-label">Class B</span>
+                  <small>读取 / 下载等操作</small>
+                </div>
+                <strong><span id="classBUsed">--</span> / <span id="classBLimit">10,000,000</span></strong>
+              </div>
+              <div class="progress-track" aria-hidden="true">
+                <div class="progress-fill class-b" id="classBProgress"></div>
+              </div>
+              <div class="quota-footer">
+                <span>剩余免费 <strong id="classBRemaining">--</strong></span>
+                <span>本桶 <strong id="bucketClassB">--</strong></span>
+              </div>
+            </article>
+          </div>
+
+          <div class="quota-note" id="usageNote">
+            免费额度按 Cloudflare 账号每月计算；监控统计不替代 Cloudflare Billing 最终账单。
+          </div>
+        </div>
+      </details>
 
       <footer>
         <span>OpenShare CF · Disaster Recovery Mirror</span>
