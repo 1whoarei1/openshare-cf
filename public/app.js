@@ -1,7 +1,7 @@
 const state = {
   catalog: null,
   query: "",
-  category: "全部",
+  currentPath: "",
 };
 
 const els = {
@@ -15,7 +15,8 @@ const els = {
   updatedAt: document.querySelector("#updatedAt"),
   searchInput: document.querySelector("#searchInput"),
   refreshButton: document.querySelector("#refreshButton"),
-  categories: document.querySelector("#categories"),
+  upButton: document.querySelector("#upButton"),
+  breadcrumbs: document.querySelector("#breadcrumbs"),
   resultSummary: document.querySelector("#resultSummary"),
   fileRows: document.querySelector("#fileRows"),
   emptyState: document.querySelector("#emptyState"),
@@ -25,16 +26,30 @@ boot();
 
 async function boot() {
   bindEvents();
+  state.currentPath = pathFromHash();
   await loadCatalog(false);
 }
 
 function bindEvents() {
   els.searchInput.addEventListener("input", (event) => {
     state.query = event.target.value.trim().toLocaleLowerCase("zh-CN");
-    renderFiles();
+    renderExplorer();
   });
 
   els.refreshButton.addEventListener("click", () => loadCatalog(true));
+
+  els.upButton.addEventListener("click", () => {
+    if (!state.currentPath) return;
+    const parts = splitPath(state.currentPath);
+    navigate(parts.slice(0, -1).join("/"));
+  });
+
+  window.addEventListener("hashchange", () => {
+    state.currentPath = pathFromHash();
+    state.query = "";
+    els.searchInput.value = "";
+    renderExplorer();
+  });
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "/" && document.activeElement !== els.searchInput) {
@@ -49,13 +64,11 @@ async function loadCatalog(live) {
   try {
     const response = await fetch(`/api/catalog${live ? "?live=1" : ""}`, { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const catalog = await response.json();
-    state.catalog = catalog;
-    state.category = "全部";
-    renderStats(response.headers.get("x-openshare-catalog-source") || catalog.source || "unknown");
-    renderCategories();
-    renderFiles();
-    setHealthy(catalog);
+
+    state.catalog = await response.json();
+    renderStats(response.headers.get("x-openshare-catalog-source") || state.catalog.source || "unknown");
+    renderExplorer();
+    setHealthy(state.catalog);
   } catch (error) {
     setFailure(error);
   } finally {
@@ -66,65 +79,214 @@ async function loadCatalog(live) {
 function renderStats(source) {
   const catalog = state.catalog;
   els.fileCount.textContent = number(catalog.stats?.files ?? catalog.files.length);
-  els.categoryCount.textContent = `${number(catalog.stats?.categories ?? catalog.categories?.length ?? 0)} 个分类`;
+  els.categoryCount.textContent = `${number(catalog.stats?.categories ?? catalog.categories?.length ?? 0)} 个顶层目录`;
   els.totalSize.textContent = formatBytes(catalog.stats?.bytes ?? 0);
   els.backupState.textContent = catalog.truncated ? "部分可用" : "正常";
   els.catalogSource.textContent = source === "snapshot" ? "R2 快照索引" : "R2 实时扫描";
 }
 
-function renderCategories() {
-  const categories = ["全部", ...(state.catalog?.categories || [])];
-  els.categories.replaceChildren(
-    ...categories.map((category) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = `chip${category === state.category ? " active" : ""}`;
-      button.textContent = category;
-      button.addEventListener("click", () => {
-        state.category = category;
-        renderCategories();
-        renderFiles();
-      });
-      return button;
-    })
-  );
+function renderExplorer() {
+  if (!state.catalog) return;
+
+  renderBreadcrumbs();
+  els.upButton.disabled = !state.currentPath;
+
+  if (state.query) {
+    renderSearchResults();
+    return;
+  }
+
+  const { folders, files } = listDirectory(state.currentPath);
+  const rows = [
+    ...folders.map(folderRow),
+    ...files.map(fileRow),
+  ];
+
+  els.resultSummary.textContent = `${number(folders.length)} 个文件夹，${number(files.length)} 个文件`;
+  els.fileRows.replaceChildren(...rows);
+
+  const empty = rows.length === 0;
+  els.emptyState.hidden = !empty;
+  if (empty) {
+    els.emptyState.querySelector("strong").textContent = state.currentPath ? "这个文件夹是空的" : "这里暂时没有资料";
+    els.emptyState.querySelector("span").textContent = "向 R2 上传文件后，点击“检查 R2 最新内容”。";
+  }
 }
 
-function renderFiles() {
+function renderSearchResults() {
   const files = state.catalog?.files || [];
-  const filtered = files.filter((file) => {
-    if (state.category !== "全部" && file.category !== state.category) return false;
-    if (!state.query) return true;
+  const matches = files.filter((file) => {
     const haystack = `${file.name} ${file.folder} ${file.extension} ${file.category}`.toLocaleLowerCase("zh-CN");
     return haystack.includes(state.query);
   });
 
-  els.resultSummary.textContent = `显示 ${number(filtered.length)} / ${number(files.length)} 个文件`;
-  els.emptyState.hidden = filtered.length !== 0;
-  els.fileRows.replaceChildren(...filtered.slice(0, 1000).map(fileRow));
+  els.resultSummary.textContent = `全站搜索：找到 ${number(matches.length)} 个文件`;
+  els.fileRows.replaceChildren(...matches.slice(0, 1000).map((file) => fileRow(file, true)));
 
-  if (filtered.length > 1000) {
-    els.resultSummary.textContent += "（为保证页面流畅，仅渲染前 1000 项；继续输入关键词可缩小范围）";
+  els.emptyState.hidden = matches.length !== 0;
+  if (matches.length === 0) {
+    els.emptyState.querySelector("strong").textContent = "没有找到匹配文件";
+    els.emptyState.querySelector("span").textContent = "可以尝试文件名、目录名或扩展名。";
+  }
+
+  if (matches.length > 1000) {
+    els.resultSummary.textContent += "（仅显示前 1000 项，请继续输入关键词缩小范围）";
   }
 }
 
-function fileRow(file) {
+function listDirectory(path) {
+  const files = state.catalog?.files || [];
+  const prefix = path ? `${path}/` : "";
+  const folderMap = new Map();
+  const directFiles = [];
+
+  for (const file of files) {
+    if (!file.key.startsWith(prefix)) continue;
+
+    const remainder = file.key.slice(prefix.length);
+    if (!remainder) continue;
+
+    const slashIndex = remainder.indexOf("/");
+    if (slashIndex === -1) {
+      directFiles.push(file);
+      continue;
+    }
+
+    const name = remainder.slice(0, slashIndex);
+    const folderPath = path ? `${path}/${name}` : name;
+
+    if (!folderMap.has(name)) {
+      folderMap.set(name, {
+        name,
+        path: folderPath,
+        files: 0,
+        bytes: 0,
+        latest: null,
+      });
+    }
+
+    const folder = folderMap.get(name);
+    folder.files += 1;
+    folder.bytes += file.size || 0;
+    folder.latest = newestDate(folder.latest, file.uploaded);
+  }
+
+  const folders = [...folderMap.values()].sort((a, b) => a.name.localeCompare(b.name, "zh-CN", { numeric: true }));
+  directFiles.sort((a, b) => a.name.localeCompare(b.name, "zh-CN", { numeric: true }));
+
+  return { folders, files: directFiles };
+}
+
+function renderBreadcrumbs() {
+  const items = [];
+
+  items.push(breadcrumbButton("根目录", ""));
+  const parts = splitPath(state.currentPath);
+
+  parts.forEach((part, index) => {
+    const separator = document.createElement("span");
+    separator.className = "breadcrumb-separator";
+    separator.textContent = "›";
+    items.push(separator);
+
+    const path = parts.slice(0, index + 1).join("/");
+    items.push(breadcrumbButton(part, path, index === parts.length - 1));
+  });
+
+  els.breadcrumbs.replaceChildren(...items);
+}
+
+function breadcrumbButton(label, path, current = false) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `breadcrumb${current ? " current" : ""}`;
+  button.textContent = label;
+  button.disabled = current;
+  button.addEventListener("click", () => navigate(path));
+  return button;
+}
+
+function folderRow(folder) {
   const row = document.createElement("tr");
+  row.className = "folder-row";
+  row.title = "双击打开文件夹";
+  row.addEventListener("dblclick", () => navigate(folder.path));
+
+  const nameCell = document.createElement("td");
+  const wrap = document.createElement("div");
+  wrap.className = "file-cell";
+
+  const icon = document.createElement("span");
+  icon.className = "folder-icon";
+  icon.textContent = "📁";
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "entry-name folder-name";
+  button.textContent = folder.name;
+  button.addEventListener("click", () => navigate(folder.path));
+
+  wrap.append(icon, button);
+  nameCell.append(wrap);
+
+  const typeCell = document.createElement("td");
+  typeCell.className = "muted";
+  typeCell.textContent = `文件夹 · ${number(folder.files)} 个文件`;
+
+  const sizeCell = document.createElement("td");
+  sizeCell.textContent = formatBytes(folder.bytes);
+
+  const dateCell = document.createElement("td");
+  dateCell.className = "muted";
+  dateCell.textContent = formatDate(folder.latest);
+
+  const actionCell = document.createElement("td");
+  actionCell.className = "action-cell";
+  const open = document.createElement("button");
+  open.type = "button";
+  open.className = "open-folder";
+  open.textContent = "打开";
+  open.addEventListener("click", () => navigate(folder.path));
+  actionCell.append(open);
+
+  row.append(nameCell, typeCell, sizeCell, dateCell, actionCell);
+  return row;
+}
+
+function fileRow(file, showLocation = false) {
+  const row = document.createElement("tr");
+  row.className = "file-row";
+  row.title = "双击下载文件";
+  row.addEventListener("dblclick", () => {
+    window.location.href = file.downloadUrl || `/download/${encodeURIComponent(file.key)}`;
+  });
 
   const fileCell = document.createElement("td");
   const fileWrap = document.createElement("div");
   fileWrap.className = "file-cell";
+
   const icon = document.createElement("span");
   icon.className = "file-icon";
   icon.textContent = file.extension ? file.extension.slice(0, 4).toUpperCase() : "FILE";
+
+  const nameWrap = document.createElement("div");
+  nameWrap.className = "entry-name-wrap";
   const name = document.createElement("strong");
   name.textContent = file.name;
-  fileWrap.append(icon, name);
+  nameWrap.append(name);
+
+  if (showLocation) {
+    const location = document.createElement("small");
+    location.textContent = file.folder ? `位置：${file.folder}` : "位置：根目录";
+    nameWrap.append(location);
+  }
+
+  fileWrap.append(icon, nameWrap);
   fileCell.append(fileWrap);
 
-  const folderCell = document.createElement("td");
-  folderCell.className = "muted";
-  folderCell.textContent = file.folder || "根目录";
+  const typeCell = document.createElement("td");
+  typeCell.className = "muted";
+  typeCell.textContent = file.extension ? `${file.extension.toUpperCase()} 文件` : "文件";
 
   const sizeCell = document.createElement("td");
   sizeCell.textContent = formatBytes(file.size);
@@ -141,8 +303,48 @@ function fileRow(file) {
   link.textContent = "下载";
   actionCell.append(link);
 
-  row.append(fileCell, folderCell, sizeCell, dateCell, actionCell);
+  row.append(fileCell, typeCell, sizeCell, dateCell, actionCell);
   return row;
+}
+
+function navigate(path) {
+  const normalized = normalizePath(path);
+  const nextHash = normalized ? `#/${encodeURIComponent(normalized)}` : "#/";
+  if (window.location.hash === nextHash) {
+    state.currentPath = normalized;
+    state.query = "";
+    els.searchInput.value = "";
+    renderExplorer();
+    return;
+  }
+  window.location.hash = nextHash;
+}
+
+function pathFromHash() {
+  if (!window.location.hash || window.location.hash === "#/" || window.location.hash === "#") return "";
+  const raw = window.location.hash.replace(/^#\/?/, "");
+  try {
+    return normalizePath(decodeURIComponent(raw));
+  } catch {
+    return "";
+  }
+}
+
+function normalizePath(path) {
+  return splitPath(path).join("/");
+}
+
+function splitPath(path) {
+  return String(path || "")
+    .split("/")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function newestDate(a, b) {
+  if (!a) return b || null;
+  if (!b) return a;
+  return new Date(a) >= new Date(b) ? a : b;
 }
 
 function setLoading(loading, text) {
