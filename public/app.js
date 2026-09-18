@@ -127,12 +127,11 @@ function renderR2Usage(usage, requestOk) {
     els.classBRemaining.textContent = number(free.classB);
     els.bucketClassA.textContent = "--";
     els.bucketClassB.textContent = "--";
-    els.classARemainingTop.textContent = "--";
-    els.classBRemainingTop.textContent = "--";
-    els.quotaTopState.textContent = "统计暂不可用";
+    els.classARemainingTop.textContent = number(free.classA);
+    els.classBRemainingTop.textContent = number(free.classB);
+    els.quotaTopState.textContent = "实时统计未连接";
     setProgress(els.classAProgress, 0);
     setProgress(els.classBProgress, 0);
-    els.quotaTopState.textContent = "实时统计未连接";
     els.usageNote.textContent =
       "免费额度已显示；如需显示真实本月使用量，请给 Worker 配置 CF_ACCOUNT_ID 与只读的 CF_ANALYTICS_TOKEN。";
     return;
@@ -147,6 +146,9 @@ function renderR2Usage(usage, requestOk) {
     els.classBRemaining.textContent = "--";
     els.bucketClassA.textContent = "--";
     els.bucketClassB.textContent = "--";
+    els.classARemainingTop.textContent = "--";
+    els.classBRemainingTop.textContent = "--";
+    els.quotaTopState.textContent = "统计暂不可用";
     setProgress(els.classAProgress, 0);
     setProgress(els.classBProgress, 0);
     els.usageNote.textContent = usage.error
