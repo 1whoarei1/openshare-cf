@@ -273,6 +273,8 @@ tbody tr:hover { background: #f7fafb; }
 .entry-name-wrap small { color: #84959e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .muted { color: #71838d; }
 .action-cell { width: 95px; text-align: right; }
+.folder-action-cell { width: 190px; }
+.folder-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
 
 .download {
   display: inline-block;
@@ -284,6 +286,7 @@ tbody tr:hover { background: #f7fafb; }
   border-radius: 8px;
 }
 .download:hover { background: #216fcf; }
+.folder-download { padding: 7px 12px; white-space: nowrap; }
 .open-folder { padding: 7px 12px; color: #1769c2; border-color: #c9ddec; }
 
 .empty { padding: 70px 20px; display: grid; place-items: center; gap: 8px; color: #71838d; text-align: center; }
