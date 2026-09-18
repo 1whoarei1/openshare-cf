@@ -73,7 +73,55 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .panel { background: rgba(255,255,255,.96); border: 1px solid #dbe4e9; border-radius: 14px; box-shadow: 0 14px 36px rgba(36,54,64,.07); }
 
-.quota-panel { margin-bottom: 18px; overflow: hidden; }
+.quota-reminder {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: -2px 0 18px;
+  padding: 10px 14px;
+  border: 1px solid #dbe5ea;
+  border-radius: 11px;
+  background: rgba(255,255,255,.82);
+  color: #667c87;
+  font-size: 13px;
+}
+.quota-reminder > strong { color: #425a66; margin-right: 2px; }
+.quota-reminder > small { margin-left: auto; color: #87979f; }
+.quota-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #f2f6f8;
+  border: 1px solid #dde6ea;
+  white-space: nowrap;
+}
+.quota-pill b { color: #405864; }
+.quota-pill strong { color: #2672b8; }
+
+.quota-panel { margin-top: 18px; margin-bottom: 18px; overflow: hidden; }
+.quota-details > summary { list-style: none; }
+.quota-details > summary::-webkit-details-marker { display: none; }
+.quota-summary {
+  min-height: 64px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 18px;
+  cursor: pointer;
+  background: #fbfcfc;
+}
+.quota-summary:hover { background: #f6f9fa; }
+.quota-summary > span { display: grid; gap: 4px; }
+.quota-summary > span:first-child strong { color: #405762; font-size: 16px; }
+.quota-summary small { color: #84949c; font-size: 12px; }
+.quota-summary-status { text-align: right; }
+.quota-summary-status strong { color: #5b6f79; }
+.quota-details[open] .quota-summary { border-bottom: 1px solid #e6ecef; }
+.quota-details-body { background: rgba(255,255,255,.96); }
 .quota-header {
   display: flex;
   justify-content: space-between;
@@ -306,8 +354,10 @@ footer { display: flex; justify-content: space-between; gap: 12px; padding: 20px
   .sync-state { font-size: 13px; }
   .stats { grid-template-columns: 1fr; }
   .stat-card { min-height: 132px; padding: 22px 24px; }
-  .quota-header { flex-direction: column; }
-  .quota-status { text-align: left; }
+  .quota-reminder { align-items: flex-start; }
+  .quota-reminder > small { width: 100%; margin-left: 0; }
+  .quota-summary { align-items: flex-start; }
+  .quota-summary-status { text-align: left; }
   .quota-grid { grid-template-columns: 1fr; }
   .quota-title { align-items: flex-end; }
   .search-panel { align-items: stretch; flex-direction: column; }
