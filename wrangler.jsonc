@@ -1,0 +1,26 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "openshare-cf",
+  "main": "./src/index.js",
+  "compatibility_date": "2026-09-18",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/api/*",
+      "/download/*"
+    ],
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "openshare-cf-files"
+    }
+  ],
+  "vars": {
+    "SITE_TITLE": "OpenShare CF 容灾镜像",
+    "AUTO_INDEX_LIMIT": "20000"
+  }
+}

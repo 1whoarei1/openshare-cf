@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta name="description" content="OpenShare Cloudflare 容灾只读镜像：浏览、搜索并下载已同步资料。" />
+    <title>OpenShare CF 容灾镜像</title>
+    <link rel="stylesheet" href="/assets/site.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">B</div>
+          <div>
+            <div class="brand-row">
+              <h1>BITshare</h1>
+              <span>容灾镜像</span>
+            </div>
+            <p>Cloudflare 只读备用资料站</p>
+          </div>
+        </div>
+        <div class="sync-state">
+          <span class="dot" id="statusDot"></span>
+          <div>
+            <strong id="statusText">正在读取镜像…</strong>
+            <small id="updatedAt">更新时间：--</small>
+          </div>
+        </div>
+      </header>
+
+      <section class="notice" role="note">
+        <strong>备用站模式</strong>
+        <span>此站点独立运行于 Cloudflare。主服务器离线时，仍可搜索和下载最近一次同步到 R2 的资料。</span>
+      </section>
+
+      <section class="stats" aria-label="镜像统计">
+        <article class="stat-card blue">
+          <span>资料文件</span>
+          <strong id="fileCount">--</strong>
+          <small id="categoryCount">-- 个分类</small>
+        </article>
+        <article class="stat-card orange">
+          <span>镜像容量</span>
+          <strong id="totalSize">--</strong>
+          <small>来自 Cloudflare R2</small>
+        </article>
+        <article class="stat-card green">
+          <span>容灾状态</span>
+          <strong id="backupState">检查中</strong>
+          <small id="catalogSource">等待索引</small>
+        </article>
+      </section>
+
+      <section class="panel search-panel">
+        <div class="search-wrap">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.35-4.35m2.35-5.65A8 8 0 1 1 3 11a8 8 0 0 1 16 0Z" /></svg>
+          <input id="searchInput" type="search" autocomplete="off" placeholder="搜索文件名、目录、扩展名…" />
+          <kbd>/</kbd>
+        </div>
+        <button class="secondary" id="refreshButton" type="button">检查 R2 最新内容</button>
+      </section>
+
+      <section class="panel">
+        <div class="toolbar">
+          <div class="categories" id="categories" aria-label="分类筛选"></div>
+          <div class="result-summary" id="resultSummary">加载中…</div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>文件</th>
+                <th>目录</th>
+                <th>大小</th>
+                <th>更新时间</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="fileRows"></tbody>
+          </table>
+          <div class="empty" id="emptyState" hidden>
+            <strong>这里暂时没有资料</strong>
+            <span>向 R2 bucket 上传测试文件后，再点击“检查 R2 最新内容”。</span>
+          </div>
+        </div>
+      </section>
+
+      <footer>
+        <span>OpenShare CF · Disaster Recovery Mirror</span>
+        <span>只读镜像 · 文件由 Cloudflare R2 提供</span>
+      </footer>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
