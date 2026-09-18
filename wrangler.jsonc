@@ -21,6 +21,7 @@
   ],
   "vars": {
     "SITE_TITLE": "OpenShare CF 容灾镜像",
-    "AUTO_INDEX_LIMIT": "20000"
+    "AUTO_INDEX_LIMIT": "20000",
+    "R2_BUCKET_NAME": "openshare-cf-files"
   }
 }
