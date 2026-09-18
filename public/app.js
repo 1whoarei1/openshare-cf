@@ -33,6 +33,9 @@ const els = {
   classBProgress: document.querySelector("#classBProgress"),
   bucketClassA: document.querySelector("#bucketClassA"),
   bucketClassB: document.querySelector("#bucketClassB"),
+  classARemainingTop: document.querySelector("#classARemainingTop"),
+  classBRemainingTop: document.querySelector("#classBRemainingTop"),
+  quotaTopState: document.querySelector("#quotaTopState"),
 };
 
 boot();
@@ -110,6 +113,9 @@ function renderR2Usage(usage, requestOk) {
 
   els.classALimit.textContent = number(free.classA);
   els.classBLimit.textContent = number(free.classB);
+  els.classARemainingTop.textContent = number(free.classA);
+  els.classBRemainingTop.textContent = number(free.classB);
+  els.quotaTopState.textContent = "按账号每月重置";
   els.usagePeriod.textContent = usage.period?.start ? `${formatMonth(usage.period.start)} · 本月` : "本月";
 
   if (!usage.configured) {
@@ -121,8 +127,12 @@ function renderR2Usage(usage, requestOk) {
     els.classBRemaining.textContent = number(free.classB);
     els.bucketClassA.textContent = "--";
     els.bucketClassB.textContent = "--";
+    els.classARemainingTop.textContent = "--";
+    els.classBRemainingTop.textContent = "--";
+    els.quotaTopState.textContent = "统计暂不可用";
     setProgress(els.classAProgress, 0);
     setProgress(els.classBProgress, 0);
+    els.quotaTopState.textContent = "实时统计未连接";
     els.usageNote.textContent =
       "免费额度已显示；如需显示真实本月使用量，请给 Worker 配置 CF_ACCOUNT_ID 与只读的 CF_ANALYTICS_TOKEN。";
     return;
@@ -154,6 +164,9 @@ function renderR2Usage(usage, requestOk) {
   els.classBUsed.textContent = number(account.classB);
   els.classARemaining.textContent = number(account.classARemaining);
   els.classBRemaining.textContent = number(account.classBRemaining);
+  els.classARemainingTop.textContent = number(account.classARemaining);
+  els.classBRemainingTop.textContent = number(account.classBRemaining);
+  els.quotaTopState.textContent = `本月已用 A ${number(account.classA)} · B ${number(account.classB)}`;
   els.bucketClassA.textContent = number(bucket.classA || 0);
   els.bucketClassB.textContent = number(bucket.classB || 0);
   setProgress(els.classAProgress, account.classAPercent || 0);
@@ -168,6 +181,9 @@ function renderR2Usage(usage, requestOk) {
 function renderR2UsageError(message) {
   els.usageStatus.textContent = "统计不可用";
   els.usageStatus.className = "usage-error";
+  els.classARemainingTop.textContent = "--";
+  els.classBRemainingTop.textContent = "--";
+  els.quotaTopState.textContent = "统计暂不可用";
   els.usageNote.textContent = message;
 }
 
