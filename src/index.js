@@ -1,6 +1,46 @@
 const CATALOG_KEY = "_meta/catalog.json";
 const INTERNAL_PREFIX = "_meta/";
 
+const R2_FREE_QUOTA = {
+  classA: 1_000_000,
+  classB: 10_000_000,
+};
+
+const CLASS_A_ACTIONS = new Set([
+  "listbuckets",
+  "putbucket",
+  "listobjects",
+  "putobject",
+  "copyobject",
+  "completemultipartupload",
+  "createmultipartupload",
+  "lifecyclestoragetiertransition",
+  "listmultipartuploads",
+  "uploadpart",
+  "uploadpartcopy",
+  "listparts",
+  "putbucketencryption",
+  "putbucketcors",
+  "putbucketlifecycleconfiguration",
+]);
+
+const CLASS_B_ACTIONS = new Set([
+  "headbucket",
+  "headobject",
+  "getobject",
+  "usagesummary",
+  "getbucketencryption",
+  "getbucketlocation",
+  "getbucketcors",
+  "getbucketlifecycleconfiguration",
+]);
+
+const FREE_ACTIONS = new Set([
+  "deleteobject",
+  "deletebucket",
+  "abortmultipartupload",
+]);
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -11,6 +51,10 @@ export default {
 
     if (url.pathname === "/api/catalog" && request.method === "GET") {
       return handleCatalog(request, env);
+    }
+
+    if (url.pathname === "/api/r2-usage" && request.method === "GET") {
+      return handleR2Usage(env);
     }
 
     if (url.pathname === "/api/admin/reindex" && request.method === "POST") {
@@ -37,6 +81,7 @@ async function handleStatus(env) {
     storage: "r2",
     catalogReady: Boolean(catalogObject),
     catalogUploadedAt: catalogObject?.uploaded?.toISOString?.() ?? null,
+    analyticsConfigured: Boolean(env.CF_ACCOUNT_ID && env.CF_ANALYTICS_TOKEN),
     siteTitle: env.SITE_TITLE || "OpenShare CF 容灾镜像",
   });
 }
@@ -64,6 +109,164 @@ async function handleCatalog(request, env) {
     "cache-control": "no-store",
     "x-openshare-catalog-source": "live",
   });
+}
+
+async function handleR2Usage(env) {
+  const bucketName = env.R2_BUCKET_NAME || "openshare-cf-files";
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0));
+
+  const base = {
+    configured: Boolean(env.CF_ACCOUNT_ID && env.CF_ANALYTICS_TOKEN),
+    bucketName,
+    period: {
+      start: monthStart.toISOString(),
+      end: now.toISOString(),
+    },
+    freeQuota: R2_FREE_QUOTA,
+  };
+
+  if (!base.configured) {
+    return json({
+      ...base,
+      account: null,
+      bucket: null,
+      note: "Configure CF_ACCOUNT_ID and CF_ANALYTICS_TOKEN to show live Cloudflare Analytics usage.",
+    }, 200, { "cache-control": "public, max-age=300" });
+  }
+
+  const query = `
+    query R2MonthlyUsage(
+      $accountTag: string!
+      $startDate: Time
+      $endDate: Time
+      $bucketName: string
+    ) {
+      viewer {
+        accounts(filter: { accountTag: $accountTag }) {
+          accountOps: r2OperationsAdaptiveGroups(
+            limit: 10000
+            filter: {
+              datetime_geq: $startDate
+              datetime_leq: $endDate
+            }
+          ) {
+            sum { requests }
+            dimensions { actionType }
+          }
+          bucketOps: r2OperationsAdaptiveGroups(
+            limit: 10000
+            filter: {
+              datetime_geq: $startDate
+              datetime_leq: $endDate
+              bucketName: $bucketName
+            }
+          ) {
+            sum { requests }
+            dimensions { actionType }
+          }
+        }
+      }
+    }
+  `;
+
+  try {
+    const response = await fetch("https://api.cloudflare.com/client/v4/graphql", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${env.CF_ANALYTICS_TOKEN}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        query,
+        variables: {
+          accountTag: env.CF_ACCOUNT_ID,
+          startDate: monthStart.toISOString(),
+          endDate: now.toISOString(),
+          bucketName,
+        },
+      }),
+    });
+
+    const payload = await response.json();
+
+    if (!response.ok || payload.errors?.length) {
+      const message =
+        payload.errors?.map((item) => item.message).filter(Boolean).join("; ") ||
+        `Cloudflare Analytics HTTP ${response.status}`;
+      throw new Error(message);
+    }
+
+    const accountNode = payload.data?.viewer?.accounts?.[0];
+    if (!accountNode) {
+      throw new Error("No Analytics account data returned.");
+    }
+
+    const account = summarizeOperations(accountNode.accountOps || []);
+    const bucket = summarizeOperations(accountNode.bucketOps || []);
+
+    return json({
+      ...base,
+      account: withQuota(account),
+      bucket,
+      analyticsUpdatedAt: now.toISOString(),
+      note: "Usage comes from Cloudflare GraphQL Analytics. Free allowance is account-level and resets monthly.",
+    }, 200, { "cache-control": "public, max-age=300" });
+  } catch (error) {
+    return json({
+      ...base,
+      account: null,
+      bucket: null,
+      error: String(error?.message || error),
+    }, 502, { "cache-control": "no-store" });
+  }
+}
+
+function summarizeOperations(groups) {
+  const summary = {
+    classA: 0,
+    classB: 0,
+    free: 0,
+    unknown: 0,
+    total: 0,
+    actions: {},
+  };
+
+  for (const group of groups) {
+    const actionType = String(group?.dimensions?.actionType || "Unknown");
+    const requests = Number(group?.sum?.requests || 0);
+    const normalized = actionType.toLowerCase();
+
+    summary.total += requests;
+    summary.actions[actionType] = (summary.actions[actionType] || 0) + requests;
+
+    if (CLASS_A_ACTIONS.has(normalized)) {
+      summary.classA += requests;
+    } else if (CLASS_B_ACTIONS.has(normalized)) {
+      summary.classB += requests;
+    } else if (FREE_ACTIONS.has(normalized)) {
+      summary.free += requests;
+    } else {
+      summary.unknown += requests;
+    }
+  }
+
+  return summary;
+}
+
+function withQuota(summary) {
+  return {
+    ...summary,
+    classARemaining: Math.max(0, R2_FREE_QUOTA.classA - summary.classA),
+    classBRemaining: Math.max(0, R2_FREE_QUOTA.classB - summary.classB),
+    classAPercent: percentage(summary.classA, R2_FREE_QUOTA.classA),
+    classBPercent: percentage(summary.classB, R2_FREE_QUOTA.classB),
+  };
+}
+
+function percentage(value, total) {
+  if (!total) return 0;
+  return Math.min(100, Math.max(0, (value / total) * 100));
 }
 
 async function handleReindex(request, env) {
