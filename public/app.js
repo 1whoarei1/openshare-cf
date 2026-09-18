@@ -20,6 +20,19 @@ const els = {
   resultSummary: document.querySelector("#resultSummary"),
   fileRows: document.querySelector("#fileRows"),
   emptyState: document.querySelector("#emptyState"),
+  usageStatus: document.querySelector("#usageStatus"),
+  usagePeriod: document.querySelector("#usagePeriod"),
+  usageNote: document.querySelector("#usageNote"),
+  classAUsed: document.querySelector("#classAUsed"),
+  classALimit: document.querySelector("#classALimit"),
+  classARemaining: document.querySelector("#classARemaining"),
+  classAProgress: document.querySelector("#classAProgress"),
+  classBUsed: document.querySelector("#classBUsed"),
+  classBLimit: document.querySelector("#classBLimit"),
+  classBRemaining: document.querySelector("#classBRemaining"),
+  classBProgress: document.querySelector("#classBProgress"),
+  bucketClassA: document.querySelector("#bucketClassA"),
+  bucketClassB: document.querySelector("#bucketClassB"),
 };
 
 boot();
@@ -27,7 +40,7 @@ boot();
 async function boot() {
   bindEvents();
   state.currentPath = pathFromHash();
-  await loadCatalog(false);
+  await Promise.allSettled([loadCatalog(false), loadR2Usage()]);
 }
 
 function bindEvents() {
@@ -36,7 +49,9 @@ function bindEvents() {
     renderExplorer();
   });
 
-  els.refreshButton.addEventListener("click", () => loadCatalog(true));
+  els.refreshButton.addEventListener("click", () => {
+    Promise.allSettled([loadCatalog(true), loadR2Usage()]);
+  });
 
   els.upButton.addEventListener("click", () => {
     if (!state.currentPath) return;
@@ -74,6 +89,92 @@ async function loadCatalog(live) {
   } finally {
     setLoading(false);
   }
+}
+
+async function loadR2Usage() {
+  els.usageStatus.textContent = "正在读取…";
+
+  try {
+    const response = await fetch("/api/r2-usage", { cache: "no-store" });
+    const usage = await response.json();
+
+    renderR2Usage(usage, response.ok);
+  } catch (error) {
+    console.error(error);
+    renderR2UsageError("无法连接 R2 Analytics");
+  }
+}
+
+function renderR2Usage(usage, requestOk) {
+  const free = usage.freeQuota || { classA: 1_000_000, classB: 10_000_000 };
+
+  els.classALimit.textContent = number(free.classA);
+  els.classBLimit.textContent = number(free.classB);
+  els.usagePeriod.textContent = usage.period?.start ? `${formatMonth(usage.period.start)} · 本月` : "本月";
+
+  if (!usage.configured) {
+    els.usageStatus.textContent = "实时统计未连接";
+    els.usageStatus.className = "usage-warning";
+    els.classAUsed.textContent = "--";
+    els.classBUsed.textContent = "--";
+    els.classARemaining.textContent = number(free.classA);
+    els.classBRemaining.textContent = number(free.classB);
+    els.bucketClassA.textContent = "--";
+    els.bucketClassB.textContent = "--";
+    setProgress(els.classAProgress, 0);
+    setProgress(els.classBProgress, 0);
+    els.usageNote.textContent =
+      "免费额度已显示；如需显示真实本月使用量，请给 Worker 配置 CF_ACCOUNT_ID 与只读的 CF_ANALYTICS_TOKEN。";
+    return;
+  }
+
+  if (!requestOk || !usage.account) {
+    els.usageStatus.textContent = "Analytics 读取失败";
+    els.usageStatus.className = "usage-error";
+    els.classAUsed.textContent = "--";
+    els.classBUsed.textContent = "--";
+    els.classARemaining.textContent = "--";
+    els.classBRemaining.textContent = "--";
+    els.bucketClassA.textContent = "--";
+    els.bucketClassB.textContent = "--";
+    setProgress(els.classAProgress, 0);
+    setProgress(els.classBProgress, 0);
+    els.usageNote.textContent = usage.error
+      ? `Cloudflare Analytics：${usage.error}`
+      : "无法读取 Cloudflare Analytics。请检查 Account Analytics: Read 权限和 Account ID。";
+    return;
+  }
+
+  const account = usage.account;
+  const bucket = usage.bucket || {};
+
+  els.usageStatus.textContent = "Cloudflare Analytics 已连接";
+  els.usageStatus.className = "usage-ok";
+  els.classAUsed.textContent = number(account.classA);
+  els.classBUsed.textContent = number(account.classB);
+  els.classARemaining.textContent = number(account.classARemaining);
+  els.classBRemaining.textContent = number(account.classBRemaining);
+  els.bucketClassA.textContent = number(bucket.classA || 0);
+  els.bucketClassB.textContent = number(bucket.classB || 0);
+  setProgress(els.classAProgress, account.classAPercent || 0);
+  setProgress(els.classBProgress, account.classBPercent || 0);
+
+  const unknown = Number(account.unknown || 0);
+  els.usageNote.textContent = unknown > 0
+    ? `账号本月另有 ${number(unknown)} 次未分类操作；额度按账号计算，本桶为 ${usage.bucketName || "当前 R2 bucket"}。监控统计不替代最终 Billing 账单。`
+    : `额度按账号计算；“本桶”显示 ${usage.bucketName || "当前 R2 bucket"} 的操作量。监控统计不替代最终 Billing 账单。`;
+}
+
+function renderR2UsageError(message) {
+  els.usageStatus.textContent = "统计不可用";
+  els.usageStatus.className = "usage-error";
+  els.usageNote.textContent = message;
+}
+
+function setProgress(element, percent) {
+  const safe = Math.min(100, Math.max(0, Number(percent) || 0));
+  element.style.width = `${safe}%`;
+  element.parentElement.setAttribute("aria-label", `已使用 ${safe.toFixed(2)}%`);
 }
 
 function renderStats(source) {
@@ -406,6 +507,12 @@ function formatDateTime(value) {
   }).format(date);
 }
 
+function formatMonth(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) return "本月";
+  return new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "long", timeZone: "UTC" }).format(date);
+}
+
 function number(value) {
-  return new Intl.NumberFormat("zh-CN").format(value || 0);
+  return new Intl.NumberFormat("zh-CN").format(Number(value) || 0);
 }
