@@ -344,30 +344,474 @@ tbody tr:hover { background: #f7fafb; }
 footer { display: flex; justify-content: space-between; gap: 12px; padding: 20px 4px 0; color: #86959c; font-size: 13px; }
 
 @media (max-width: 850px) {
-  .shell { width: min(100% - 20px, 1500px); padding-top: 18px; }
-  .topbar { align-items: flex-start; }
-  .brand-mark { width: 58px; height: 58px; font-size: 32px; }
-  .brand-row { display: block; }
-  .brand-row h1 { font-size: 30px; }
-  .brand-row span { display: block; margin-top: 5px; font-size: 18px; }
-  .brand p { display: none; }
-  .sync-state { font-size: 13px; }
-  .stats { grid-template-columns: 1fr; }
-  .stat-card { min-height: 96px; padding: 16px 18px; }
-  .quota-reminder { align-items: flex-start; }
-  .quota-reminder > small { width: 100%; margin-left: 0; }
-  .quota-summary { align-items: flex-start; }
-  .quota-summary-status { text-align: left; }
-  .quota-grid { grid-template-columns: 1fr; }
-  .quota-title { align-items: flex-end; }
-  .search-panel { align-items: stretch; flex-direction: column; }
-  .secondary { width: 100%; }
+  body {
+    background-size: 28px 28px;
+  }
+
+  .shell {
+    width: min(100% - 16px, 1500px);
+    padding: 12px 0 28px;
+  }
+
+  .topbar {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .brand {
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .brand-mark {
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    font-size: 30px;
+  }
+
+  .brand-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .brand-row h1 {
+    font-size: 28px;
+    white-space: nowrap;
+  }
+
+  .brand-row span {
+    display: inline;
+    margin-top: 0;
+    font-size: 16px;
+    letter-spacing: .5px;
+    white-space: nowrap;
+  }
+
+  .brand p {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+  }
+
+  .sync-state {
+    justify-self: stretch;
+    justify-content: flex-start;
+    text-align: left;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid #dce6ea;
+    border-radius: 10px;
+    background: rgba(255,255,255,.78);
+    font-size: 12px;
+  }
+
+  .sync-state small {
+    margin-top: 2px;
+  }
+
+  .notice {
+    display: block;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    border-radius: 10px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .notice strong {
+    display: block;
+    margin-bottom: 3px;
+  }
+
+  .quota-reminder {
+    gap: 6px;
+    margin: 0 0 10px;
+    padding: 8px 10px;
+    border-radius: 9px;
+    font-size: 11px;
+  }
+
+  .quota-reminder > strong {
+    width: 100%;
+    font-size: 12px;
+  }
+
+  .quota-reminder > small {
+    width: 100%;
+    margin-left: 0;
+    font-size: 10px;
+  }
+
+  .quota-pill {
+    flex: 1 1 calc(50% - 4px);
+    justify-content: center;
+    padding: 5px 7px;
+    font-size: 10px;
+  }
+
+  .stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+    margin-bottom: 10px;
+  }
+
+  .stat-card {
+    min-height: 82px;
+    padding: 11px 10px;
+    border-radius: 10px;
+    box-shadow: 0 6px 16px rgba(36,54,64,.05);
+  }
+
+  .stat-card span {
+    font-size: 11px;
+    letter-spacing: 0;
+  }
+
+  .stat-card strong {
+    margin: 7px 0 5px;
+    font-size: clamp(20px, 6.2vw, 28px);
+    white-space: nowrap;
+  }
+
+  .stat-card small {
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .panel {
+    border-radius: 11px;
+  }
+
+  .search-panel {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    align-items: center;
+    flex-direction: row;
+    gap: 7px;
+    padding: 8px;
+    margin-bottom: 10px;
+    box-shadow: 0 8px 22px rgba(36,54,64,.09);
+  }
+
+  .search-wrap {
+    gap: 7px;
+    padding: 0 10px;
+    border-radius: 9px;
+  }
+
+  .search-wrap svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .search-wrap input {
+    min-width: 0;
+    padding: 11px 0;
+    font-size: 14px;
+  }
+
+  .search-wrap kbd {
+    display: none;
+  }
+
+  .secondary {
+    width: auto;
+    flex: 0 0 auto;
+    padding: 10px 11px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
   .explorer-toolbar {
     grid-template-columns: auto minmax(0, 1fr);
+    gap: 7px;
+    min-height: 52px;
+    padding: 8px 9px;
   }
+
+  .nav-button {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .breadcrumbs {
+    gap: 1px;
+    padding: 1px 0;
+  }
+
+  .breadcrumb {
+    padding: 7px 6px;
+    font-size: 12px;
+  }
+
+  .breadcrumb-separator {
+    font-size: 12px;
+  }
+
   .result-summary {
     grid-column: 1 / -1;
-    padding-left: 2px;
+    padding: 0 2px 1px;
+    font-size: 11px;
   }
-  footer { flex-direction: column; }
+
+  .table-wrap {
+    overflow-x: hidden;
+  }
+
+  table {
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  th,
+  td {
+    padding: 11px 9px;
+  }
+
+  th {
+    font-size: 11px;
+  }
+
+  td {
+    font-size: 12px;
+  }
+
+  th:nth-child(2),
+  td:nth-child(2),
+  th:nth-child(4),
+  td:nth-child(4) {
+    display: none;
+  }
+
+  th:nth-child(1),
+  td:nth-child(1) {
+    width: auto;
+  }
+
+  th:nth-child(3),
+  td:nth-child(3) {
+    width: 66px;
+    text-align: right;
+    white-space: nowrap;
+    font-size: 11px;
+  }
+
+  th:nth-child(5),
+  td:nth-child(5) {
+    width: 78px;
+    padding-left: 4px;
+  }
+
+  .file-cell {
+    max-width: none;
+    gap: 8px;
+  }
+
+  .file-icon {
+    width: 36px;
+    min-width: 36px;
+    height: 30px;
+    font-size: 9px;
+  }
+
+  .folder-icon {
+    width: 36px;
+    min-width: 36px;
+    height: 30px;
+    font-size: 23px;
+  }
+
+  .entry-name {
+    max-width: 100%;
+    padding: 7px 0;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .entry-name-wrap strong {
+    font-size: 13px;
+  }
+
+  .entry-name-wrap small {
+    font-size: 10px;
+  }
+
+  .action-cell,
+  .folder-action-cell {
+    width: 78px;
+  }
+
+  .folder-actions {
+    justify-content: flex-end;
+  }
+
+  .folder-actions .open-folder {
+    display: none;
+  }
+
+  .download,
+  .folder-download {
+    padding: 7px 9px;
+    border-radius: 7px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .empty {
+    padding: 42px 16px;
+  }
+
+  .empty strong {
+    font-size: 16px;
+  }
+
+  .quota-panel {
+    margin-top: 10px;
+    margin-bottom: 10px;
+  }
+
+  .quota-summary {
+    min-height: 54px;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 12px;
+  }
+
+  .quota-summary > span:first-child strong {
+    font-size: 14px;
+  }
+
+  .quota-summary small {
+    font-size: 10px;
+  }
+
+  .quota-summary-status {
+    text-align: right;
+    font-size: 11px;
+  }
+
+  .quota-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .quota-card {
+    padding: 12px;
+  }
+
+  .quota-title {
+    align-items: flex-end;
+    gap: 10px;
+  }
+
+  .quota-label {
+    font-size: 14px;
+  }
+
+  .quota-title > strong {
+    font-size: 14px;
+  }
+
+  .progress-track {
+    height: 8px;
+    margin: 10px 0 8px;
+  }
+
+  .quota-footer {
+    font-size: 11px;
+  }
+
+  .quota-note {
+    padding: 9px 11px 10px;
+    font-size: 10px;
+  }
+
+  footer {
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 3px 0;
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 430px) {
+  .shell {
+    width: min(100% - 12px, 1500px);
+  }
+
+  .brand-row h1 {
+    font-size: 25px;
+  }
+
+  .brand-row span {
+    font-size: 14px;
+  }
+
+  .stats {
+    gap: 5px;
+  }
+
+  .stat-card {
+    min-height: 78px;
+    padding: 10px 8px;
+  }
+
+  .stat-card span {
+    font-size: 10px;
+  }
+
+  .stat-card strong {
+    font-size: clamp(18px, 6vw, 24px);
+  }
+
+  .stat-card small {
+    font-size: 9px;
+  }
+
+  .quota-pill {
+    flex-basis: 100%;
+    justify-content: flex-start;
+  }
+
+  .secondary {
+    max-width: 96px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  th:nth-child(3),
+  td:nth-child(3) {
+    width: 58px;
+    font-size: 10px;
+  }
+
+  th:nth-child(5),
+  td:nth-child(5) {
+    width: 70px;
+  }
+
+  .download,
+  .folder-download {
+    padding: 7px 7px;
+    font-size: 10px;
+  }
+
+  .quota-summary {
+    align-items: flex-start;
+  }
+
+  .quota-summary-status {
+    max-width: 135px;
+  }
 }
