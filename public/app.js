@@ -342,13 +342,26 @@ function folderRow(folder) {
   dateCell.textContent = formatDate(folder.latest);
 
   const actionCell = document.createElement("td");
-  actionCell.className = "action-cell";
+  actionCell.className = "action-cell folder-action-cell";
+
+  const actions = document.createElement("div");
+  actions.className = "folder-actions";
+
   const open = document.createElement("button");
   open.type = "button";
   open.className = "open-folder";
   open.textContent = "打开";
   open.addEventListener("click", () => navigate(folder.path));
-  actionCell.append(open);
+
+  const download = document.createElement("a");
+  download.className = "download folder-download";
+  download.href = `/download-folder/${encodeURIComponent(folder.path)}`;
+  download.textContent = "打包下载";
+  download.title = `递归下载 ${folder.name} 及全部子文件夹（TAR）`;
+  download.addEventListener("dblclick", (event) => event.stopPropagation());
+
+  actions.append(open, download);
+  actionCell.append(actions);
 
   row.append(nameCell, typeCell, sizeCell, dateCell, actionCell);
   return row;
