@@ -1,5 +1,8 @@
 const CATALOG_KEY = "_meta/catalog.json";
 const INTERNAL_PREFIX = "_meta/";
+const TAR_BLOCK_SIZE = 512;
+const FOLDER_DOWNLOAD_MAX_FILES = 20000;
+const textEncoder = new TextEncoder();
 
 const R2_FREE_QUOTA = {
   classA: 1_000_000,
@@ -61,6 +64,10 @@ export default {
       return handleReindex(request, env);
     }
 
+    if (url.pathname.startsWith("/download-folder/") && request.method === "GET") {
+      return handleFolderDownload(env, url.pathname);
+    }
+
     if (url.pathname.startsWith("/download/") && request.method === "GET") {
       return handleDownload(request, env, url.pathname);
     }
@@ -82,6 +89,7 @@ async function handleStatus(env) {
     catalogReady: Boolean(catalogObject),
     catalogUploadedAt: catalogObject?.uploaded?.toISOString?.() ?? null,
     analyticsConfigured: Boolean(env.CF_ACCOUNT_ID && env.CF_ANALYTICS_TOKEN),
+    folderDownload: "streaming-tar",
     siteTitle: env.SITE_TITLE || "OpenShare CF 容灾镜像",
   });
 }
@@ -304,6 +312,231 @@ async function handleReindex(request, env) {
   });
 }
 
+async function handleFolderDownload(env, pathname) {
+  let folderPath;
+
+  try {
+    folderPath = decodeURIComponent(pathname.slice("/download-folder/".length));
+  } catch {
+    return new Response("Bad folder path", { status: 400 });
+  }
+
+  folderPath = normalizeObjectPath(folderPath);
+
+  if (!folderPath || folderPath.startsWith(INTERNAL_PREFIX)) {
+    return new Response("Folder not found", { status: 404 });
+  }
+
+  const prefix = `${folderPath}/`;
+  let objects;
+
+  try {
+    objects = await listFolderObjects(env.FILES, prefix, FOLDER_DOWNLOAD_MAX_FILES);
+  } catch (error) {
+    return json({ error: String(error?.message || error) }, 413);
+  }
+
+  if (objects.length === 0) {
+    return new Response("Folder is empty or does not exist", { status: 404 });
+  }
+
+  const parentPrefix = folderPath.includes("/")
+    ? folderPath.slice(0, folderPath.lastIndexOf("/") + 1)
+    : "";
+
+  const folderName = folderPath.split("/").filter(Boolean).at(-1) || "folder";
+  const archiveName = `${folderName}.tar`;
+  const tarStream = createTarStream(env.FILES, objects, parentPrefix);
+
+  return new Response(tarStream, {
+    headers: {
+      "content-type": "application/x-tar",
+      "content-disposition": contentDisposition(archiveName),
+      "cache-control": "private, no-store",
+      "x-openshare-folder-files": String(objects.length),
+    },
+  });
+}
+
+async function listFolderObjects(bucket, prefix, maxFiles) {
+  const objects = [];
+  let cursor;
+
+  while (true) {
+    const page = await bucket.list({
+      prefix,
+      cursor,
+      limit: 1000,
+    });
+
+    for (const object of page.objects) {
+      if (object.key.startsWith(INTERNAL_PREFIX)) continue;
+      if (object.key.endsWith("/") && object.size === 0) continue;
+
+      objects.push({
+        key: object.key,
+        size: object.size,
+        uploaded: object.uploaded,
+      });
+
+      if (objects.length > maxFiles) {
+        throw new Error(`Folder contains more than ${maxFiles} files; split the download into smaller folders.`);
+      }
+    }
+
+    if (!page.truncated || !page.cursor) break;
+    cursor = page.cursor;
+  }
+
+  objects.sort((a, b) => a.key.localeCompare(b.key, "zh-CN", { numeric: true }));
+  return objects;
+}
+
+function createTarStream(bucket, objects, stripPrefix) {
+  const { readable, writable } = new TransformStream();
+
+  (async () => {
+    try {
+      for (let index = 0; index < objects.length; index += 1) {
+        const metadata = objects[index];
+        const archivePath = metadata.key.slice(stripPrefix.length);
+        const modified = metadata.uploaded ? new Date(metadata.uploaded) : new Date();
+
+        const paxBody = makePaxBody({
+          path: archivePath,
+          mtime: String(modified.getTime() / 1000),
+        });
+
+        const paxName = `PaxHeaders/${String(index + 1).padStart(6, "0")}`;
+        await writeToStream(
+          writable,
+          createTarHeader({
+            name: paxName,
+            size: paxBody.byteLength,
+            mtime: modified,
+            type: "x",
+          })
+        );
+        await writeToStream(writable, paxBody);
+        await writeTarPadding(writable, paxBody.byteLength);
+
+        const object = await bucket.get(metadata.key);
+        if (!object?.body) {
+          throw new Error(`R2 object disappeared during archive creation: ${metadata.key}`);
+        }
+
+        await writeToStream(
+          writable,
+          createTarHeader({
+            name: `file-${String(index + 1).padStart(6, "0")}`,
+            size: object.size,
+            mtime: modified,
+            type: "0",
+          })
+        );
+
+        await object.body.pipeTo(writable, { preventClose: true });
+        await writeTarPadding(writable, object.size);
+      }
+
+      await writeToStream(writable, new Uint8Array(TAR_BLOCK_SIZE * 2));
+
+      const writer = writable.getWriter();
+      await writer.close();
+      writer.releaseLock();
+    } catch (error) {
+      try {
+        const writer = writable.getWriter();
+        await writer.abort(error);
+        writer.releaseLock();
+      } catch {
+        // Client disconnect or stream already closed.
+      }
+    }
+  })();
+
+  return readable;
+}
+
+function makePaxBody(fields) {
+  let text = "";
+
+  for (const [key, value] of Object.entries(fields)) {
+    text += makePaxRecord(key, value);
+  }
+
+  return textEncoder.encode(text);
+}
+
+function makePaxRecord(key, value) {
+  const payload = ` ${key}=${value}\n`;
+  const payloadLength = textEncoder.encode(payload).byteLength;
+  let length = payloadLength + 1;
+
+  while (true) {
+    const next = payloadLength + String(length).length;
+    if (next === length) break;
+    length = next;
+  }
+
+  return `${length}${payload}`;
+}
+
+function createTarHeader({ name, size, mtime, type }) {
+  const header = new Uint8Array(TAR_BLOCK_SIZE);
+
+  writeAscii(header, 0, 100, name);
+  writeOctal(header, 100, 8, 0o644);
+  writeOctal(header, 108, 8, 0);
+  writeOctal(header, 116, 8, 0);
+  writeOctal(header, 124, 12, size);
+  writeOctal(header, 136, 12, Math.floor((mtime?.getTime?.() || Date.now()) / 1000));
+
+  header.fill(0x20, 148, 156);
+  header[156] = String(type || "0").charCodeAt(0);
+
+  writeAscii(header, 257, 6, "ustar\0");
+  writeAscii(header, 263, 2, "00");
+  writeAscii(header, 265, 32, "openshare");
+  writeAscii(header, 297, 32, "openshare");
+
+  let checksum = 0;
+  for (const byte of header) checksum += byte;
+
+  const checksumText = checksum.toString(8).padStart(6, "0");
+  writeAscii(header, 148, 8, `${checksumText}\0 `);
+
+  return header;
+}
+
+function writeAscii(buffer, offset, length, value) {
+  const bytes = textEncoder.encode(String(value || ""));
+  buffer.set(bytes.slice(0, length), offset);
+}
+
+function writeOctal(buffer, offset, length, value) {
+  const safe = Math.max(0, Number(value) || 0);
+  const text = Math.floor(safe).toString(8).padStart(length - 1, "0").slice(-(length - 1));
+  writeAscii(buffer, offset, length, `${text}\0`);
+}
+
+async function writeToStream(writable, bytes) {
+  if (!bytes?.byteLength) return;
+  const writer = writable.getWriter();
+
+  try {
+    await writer.write(bytes);
+  } finally {
+    writer.releaseLock();
+  }
+}
+
+async function writeTarPadding(writable, size) {
+  const remainder = Number(size) % TAR_BLOCK_SIZE;
+  if (remainder === 0) return;
+  await writeToStream(writable, new Uint8Array(TAR_BLOCK_SIZE - remainder));
+}
+
 async function handleDownload(request, env, pathname) {
   let key;
   try {
@@ -420,6 +653,14 @@ function toCatalogEntry(object) {
     contentType: object.httpMetadata?.contentType || null,
     downloadUrl: `/download/${encodeURIComponent(key)}`,
   };
+}
+
+function normalizeObjectPath(path) {
+  return String(path || "")
+    .split("/")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join("/");
 }
 
 function fileNameFromKey(key) {
